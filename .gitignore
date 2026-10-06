@@ -1,0 +1,5 @@
+# Nezašifrované zdroje a heslo nikdy nepublikovať
+zdroj/
+.build/
+.heslo
+node_modules/

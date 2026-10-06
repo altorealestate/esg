@@ -1,6 +1,9 @@
 ﻿# Zostaví web z priečinka zdroj\ do docs\ a zašifruje HTML stránky heslom (StatiCrypt).
 # Heslo sa berie z $env:STATICRYPT_PASSWORD, inak zo súboru .heslo (vytvorí ho nastavit-heslo.ps1).
 # zdroj\ a .heslo sú v .gitignore - na GitHub ide len zašifrovaný obsah docs\.
+# Predvolene sa publikujú len Zistenia (na / aj /zistenia/). S prepínačom -Portfolio pribudne
+# ESG Portfolio Monitor (/portfolio/) a na / bude úvodná stránka s odkazmi na obe.
+param([switch]$Portfolio)
 $ErrorActionPreference = 'Stop'
 $root  = $PSScriptRoot
 $src   = Join-Path $root 'zdroj'
@@ -27,24 +30,29 @@ $noindex = '<meta name="robots" content="noindex, nofollow">'
 
 foreach ($dir in $build, $out) { if (Test-Path $dir) { Remove-Item $dir -Recurse -Force } }
 
-# 1) Úvodná stránka
-Copy-Item (Join-Path $src 'index.html') (Join-Path (New-Item -ItemType Directory -Force $build) 'index.html')
+New-Item -ItemType Directory -Force $build | Out-Null
 
-# 2) ESG Portfolio Monitor - dáta (esg-db.json) sa vložia priamo do stránky, aby boli zašifrované spolu s ňou.
-#    esg-db.js ich načíta z <script id="esg-seed-json"> (podpora "standalone build").
-#    support.js, image-slot.js a esg-db.js sú len kód bez dát - idú vedľa stránky nezašifrované.
-$html = Read-Text (Join-Path $src 'portfolio\index.html')
-$seed = (Read-Text (Join-Path $src 'portfolio\esg-db.json')).Replace('</', '<\/')
-$anchor = '<meta name="viewport" content="width=device-width, initial-scale=1">'
-if (-not $html.Contains($anchor)) { throw 'portfolio\index.html: nenašiel som <meta name="viewport"> na vloženie dát.' }
-$html = $html.Replace($anchor, $anchor + "`n" + $noindex + "`n<script type=""application/json"" id=""esg-seed-json"">" + $seed + '</script>')
-Write-Text (Join-Path $build 'portfolio\index.html') $html
-foreach ($f in 'support.js', 'image-slot.js', 'esg-db.js') { Copy-Item (Join-Path $src "portfolio\$f") (Join-Path $build "portfolio\$f") }
+if ($Portfolio) {
+  # 1) Úvodná stránka
+  Copy-Item (Join-Path $src 'index.html') (Join-Path $build 'index.html')
 
-# 3) Zistenia k zberu ESG dát (artifact z claude.ai)
+  # 2) ESG Portfolio Monitor - dáta (esg-db.json) sa vložia priamo do stránky, aby boli zašifrované spolu s ňou.
+  #    esg-db.js ich načíta z <script id="esg-seed-json"> (podpora "standalone build").
+  #    support.js, image-slot.js a esg-db.js sú len kód bez dát - idú vedľa stránky nezašifrované.
+  $html = Read-Text (Join-Path $src 'portfolio\index.html')
+  $seed = (Read-Text (Join-Path $src 'portfolio\esg-db.json')).Replace('</', '<\/')
+  $anchor = '<meta name="viewport" content="width=device-width, initial-scale=1">'
+  if (-not $html.Contains($anchor)) { throw 'portfolio\index.html: nenašiel som <meta name="viewport"> na vloženie dát.' }
+  $html = $html.Replace($anchor, $anchor + "`n" + $noindex + "`n<script type=""application/json"" id=""esg-seed-json"">" + $seed + '</script>')
+  Write-Text (Join-Path $build 'portfolio\index.html') $html
+  foreach ($f in 'support.js', 'image-slot.js', 'esg-db.js') { Copy-Item (Join-Path $src "portfolio\$f") (Join-Path $build "portfolio\$f") }
+}
+
+# 3) Zistenia k zberu ESG dát (artifact z claude.ai) - bez portfólia sú aj priamo na /
 $html = Read-Text (Join-Path $src 'zistenia\index.html')
 $html = $html -replace '(<meta name=viewport[^>]*>)', ('$1' + $noindex)
 Write-Text (Join-Path $build 'zistenia\index.html') $html
+if (-not $Portfolio) { Write-Text (Join-Path $build 'index.html') $html }
 
 # 4) Šifrovanie
 Push-Location $root
